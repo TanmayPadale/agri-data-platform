@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    "hashicorp.terraform",
+    "redhat.vscode-yaml"
+  ]
+}
