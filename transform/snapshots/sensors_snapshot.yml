@@ -1,0 +1,16 @@
+# SCD type 2 history of the sensors seed.
+#
+# Each time `dbt snapshot` (or `dbt build`) runs, dbt compares the seed with the
+# current snapshot rows. If a sensor's field, crop or farm changed, the old row is
+# closed (dbt_valid_to = now) and a new row is opened (dbt_valid_to = null).
+# That is how "which field was S-03 on at 10:00 last Tuesday?" stays answerable.
+snapshots:
+  - name: sensors_snapshot
+    relation: ref('sensors')
+    description: Every version of every sensor's placement, with its validity window.
+    config:
+      schema: snapshots
+      unique_key: sensor_id
+      strategy: check  # no updated_at column in a CSV, so compare these columns instead
+      check_cols: [field_id, field_name, crop, location_id]
+      hard_deletes: invalidate  # a sensor removed from the seed gets its current row closed
