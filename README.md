@@ -20,6 +20,13 @@ This is the capstone of my Stack Refresh Sprint, built one layer a day.
   S3 landing bucket, a least-privilege Lambda and its EventBridge schedule, with remote
   state locked in S3; applied for free against a local AWS emulator; GitHub Actions
   runs lint, tests, dbt, DAG checks, Terraform validation and the image build on every PR.
+- **Day 6:** agronomy references (FAO-56, FAO irrigation scheduling, USDA NRCS and UC
+  soil-moisture guides) are chunked, embedded locally and stored in pgvector. A small
+  local model answers with numbered citations, asks a validated, read-only tool for
+  field data, says it does not know when the sources do not cover a question, and
+  ignores an instruction planted in one of the sources. Fifteen golden questions score
+  retrieval, faithfulness, tool use, refusals and injection resistance, and the judge
+  is checked on a known-good and a known-bad answer before its scores count.
 
 ## Quickstart
 
@@ -44,6 +51,12 @@ make backfill FROM=2026-09-21 TO=2026-10-04
 make image               # the ingest image, smoke-tested
 make tf-validate         # what CI runs: fmt + validate, no credentials
 make tf-emulator-apply   # the AWS side in LocalStack, free (make tf-emulator-destroy after)
+
+ollama pull llama3.2:3b && ollama pull nomic-embed-text   # once: free local models
+make docs-fetch          # download the agronomy references (not committed)
+make docs-ingest         # chunk, embed and store them in pgvector
+make ask Q="What is the mid-season crop coefficient for sweet peppers?"
+make evals               # the 15 golden questions, scored
 make test
 ```
 
