@@ -1,0 +1,46 @@
+# Daily weather ingestion as a Kubernetes CronJob, from the same image as the consumer.
+# 20:30 UTC is when the latest local day has ended at both farms.
+#   Run it now:  kubectl -n agri create job --from=cronjob/weather-ingest weather-now
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: weather-ingest
+  namespace: agri
+spec:
+  schedule: "30 20 * * *"
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid  # never two loads at once (they would be harmless, but wasteful)
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2  # retry a failed load twice; the upsert makes retries safe
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: weather
+              image: agri/sensor-consumer:0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "ingest.weather", "--yesterday"]
+              envFrom:
+                - configMapRef: {name: agri-config}
+                - secretRef: {name: agri-db}
+              resources:
+                requests: {cpu: 50m, memory: 96Mi}
+                limits: {cpu: 500m, memory: 256Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: tmp
+              emptyDir: {}

@@ -1,0 +1,70 @@
+# The sensor consumer: two replicas in the same consumer group, so Kafka splits the
+# six partitions between them (three each). If a pod dies, the other takes all six.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-consumer
+  namespace: agri
+  labels: {app: sensor-consumer}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: sensor-consumer}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}  # a rollout never drops below 2 ready pods
+  template:
+    metadata:
+      labels: {app: sensor-consumer}
+    spec:
+      terminationGracePeriodSeconds: 30  # SIGTERM first: the consumer leaves its group cleanly
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: consumer
+          image: agri/sensor-consumer:0.1.0
+          imagePullPolicy: IfNotPresent  # loaded into kind with `kind load docker-image`
+          ports:
+            - {name: metrics, containerPort: 8000}
+          envFrom:
+            - configMapRef: {name: agri-config}
+            - secretRef: {name: agri-db}
+          # Requests: what the scheduler reserves. Limits: the ceiling. Over the memory
+          # limit the pod is OOMKilled, which `kubectl describe pod` shows clearly.
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          # Liveness: is the process stuck? Failing it restarts the container.
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          # Readiness: can it do useful work yet? Failing it only takes the pod out of
+          # the Service, without a restart.
+          readinessProbe:
+            httpGet: {path: /ready, port: metrics}
+            periodSeconds: 5
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}  # the only writable path
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# A stable name for the metrics endpoint, used by kubectl port-forward and Prometheus.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sensor-consumer
+  namespace: agri
+spec:
+  selector: {app: sensor-consumer}
+  ports:
+    - {name: metrics, port: 8000, targetPort: metrics}

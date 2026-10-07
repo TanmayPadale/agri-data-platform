@@ -1,0 +1,19 @@
+# Non-secret settings, injected into the pods as environment variables.
+# The services run in Docker Compose on the host, and pods reach them through
+# host.docker.internal (Kafka on its DOCKER listener, :29092).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agri-config
+  namespace: agri
+data:
+  KAFKA_BOOTSTRAP: "host.docker.internal:29092"
+  REDIS_HOST: "host.docker.internal"
+  REDIS_PORT: "6379"
+  SENSOR_TOPIC: "sensor.readings"
+  SENSOR_DLQ_TOPIC: "sensor.readings.dlq"
+  CONSUMER_GROUP: "agri-loader"
+  METRICS_PORT: "8000"
+  # The containers run with a read-only root filesystem. The weather job lands its day
+  # files before loading them, so they go to /tmp, the one writable mount (an emptyDir).
+  AGRI_DATA_DIR: "/tmp/data"

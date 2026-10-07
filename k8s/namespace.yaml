@@ -1,0 +1,6 @@
+# Everything for this project lives in one namespace, so `kubectl delete namespace agri`
+# removes it all.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agri

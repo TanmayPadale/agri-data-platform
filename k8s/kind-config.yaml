@@ -1,0 +1,9 @@
+# A one-node local cluster, sized for an 8 GB laptop:
+#   kind create cluster --name agri --config k8s/kind-config.yaml
+# kind v0.33 starts Kubernetes 1.37 by default; make k8s-validate checks the manifests
+# against the 1.37 schemas, so what passes there is what this cluster accepts.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: agri
+nodes:
+  - role: control-plane
