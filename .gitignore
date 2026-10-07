@@ -16,3 +16,5 @@ reports/*.md
 .airflow/
 *.tmp
 transform/.user.yml
+infra/.build/
+infra/backend/aws.s3.tfbackend

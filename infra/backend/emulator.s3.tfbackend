@@ -1,0 +1,18 @@
+# Remote state in the local AWS emulator (LocalStack on :4566). Same S3 backend,
+# same lockfile locking as real AWS, zero cost. Credentials are the emulator's
+# dummy values (test/test), set by `make tf-emulator-apply`.
+bucket       = "agri-tf-state-local"
+key          = "agri/terraform.tfstate"
+region       = "ap-southeast-2"
+use_lockfile = true
+encrypt      = true
+
+use_path_style              = true
+skip_credentials_validation = true
+skip_requesting_account_id  = true
+skip_metadata_api_check     = true
+endpoints = {
+  s3  = "http://localhost:4566"
+  sts = "http://localhost:4566"
+  iam = "http://localhost:4566"
+}

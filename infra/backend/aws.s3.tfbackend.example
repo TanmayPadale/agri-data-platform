@@ -1,0 +1,11 @@
+# Real AWS. Copy to aws.s3.tfbackend, set your state bucket (created once with
+# infra/bootstrap), then:
+#   aws login
+#   terraform -chdir=infra init -reconfigure -backend-config=backend/aws.s3.tfbackend
+#   terraform -chdir=infra apply -var suffix=<yours>
+#   terraform -chdir=infra destroy -var suffix=<yours>   # when you are done
+bucket       = "agri-tf-state-<your-suffix>"
+key          = "agri/terraform.tfstate"
+region       = "ap-southeast-2"
+use_lockfile = true # S3-native locking: a second apply waits instead of corrupting state
+encrypt      = true
