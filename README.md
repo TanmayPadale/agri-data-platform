@@ -27,6 +27,12 @@ This is the capstone of my Stack Refresh Sprint, built one layer a day.
   ignores an instruction planted in one of the sources. Fifteen golden questions score
   retrieval, faithfulness, tool use, refusals and injection resistance, and the judge
   is checked on a known-good and a known-bad answer before its scores count.
+- **Day 7:** the consumer exposes RED metrics, a liveness check and a readiness check,
+  and runs as two replicas on a local kind cluster (probes, requests and limits, a
+  non-root, read-only container) next to the weather load as a CronJob. Prometheus
+  scrapes it and Kafka lag, three alert rules have unit tests, Grafana draws a
+  provisioned dashboard, and two SLOs (weather freshness, sensor latency) are measured
+  in SQL against their error budgets.
 
 ## Quickstart
 
@@ -57,6 +63,15 @@ make docs-fetch          # download the agronomy references (not committed)
 make docs-ingest         # chunk, embed and store them in pgvector
 make ask Q="What is the mid-season crop coefficient for sweet peppers?"
 make evals               # the 15 golden questions, scored
+
+make up-monitoring       # Prometheus :9090, Grafana :3000, kafka-exporter (after up-stream)
+make consume             # now also serves /metrics, /healthz and /ready on :8000
+make metrics             # health, readiness and the counters
+make poison              # then watch SensorMessagesInDLQ fire on localhost:9090/alerts
+make slo                 # the two SLIs against their targets
+make alerts-check        # promtool: config, rules and the alert unit tests
+make k8s-validate        # manifests against the Kubernetes 1.37 schemas
+make verify-mac          # kind: build, load, deploy two replicas and the CronJob, check
 make test
 ```
 

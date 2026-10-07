@@ -1,56 +1,130 @@
 {
   "uid": "agri-stream",
   "title": "Agri sensor stream",
-  "description": "RED metrics for the sensor consumer plus consumer lag. Throughput, p95 time, DLQ rate, lag.",
+  "description": "RED metrics for the sensor consumer plus consumer lag. The dead-letter panel uses the same expression as the SensorMessagesInDLQ alert.",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "10s",
-  "time": {"from": "now-30m", "to": "now"},
-  "tags": ["agri"],
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "tags": [
+    "agri"
+  ],
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
       "title": "Throughput (messages per second, by outcome)",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        {"refId": "A", "expr": "sum by (outcome) (rate(messages_processed_total[1m]))", "legendFormat": "{{outcome}}"}
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(messages_processed_total[1m]))",
+          "legendFormat": "{{outcome}}"
+        }
       ],
-      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: msg/s"
+        },
+        "overrides": []
+      }
     },
     {
       "id": 2,
       "type": "timeseries",
       "title": "Processing time per message, p95",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        {"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(processing_seconds_bucket[5m])))", "legendFormat": "p95"}
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processing_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        }
       ],
-      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
     },
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Dead-letter rate (messages per second)",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "title": "Dead-lettered messages, last 5 minutes (alerts above 0)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        {"refId": "A", "expr": "sum(rate(dlq_messages_total[5m]))", "legendFormat": "to DLQ"}
+        {
+          "refId": "A",
+          "expr": "sum(increase(dlq_messages_total[5m]))",
+          "legendFormat": "to DLQ"
+        }
       ],
-      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      }
     },
     {
       "id": 4,
       "type": "timeseries",
       "title": "Consumer lag by partition (agri-loader)",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        {"refId": "A", "expr": "sum by (partition) (kafka_consumergroup_lag{consumergroup=\"agri-loader\"})", "legendFormat": "p{{partition}}"}
+        {
+          "refId": "A",
+          "expr": "sum by (partition) (kafka_consumergroup_lag{consumergroup=\"agri-loader\"})",
+          "legendFormat": "p{{partition}}"
+        }
       ],
-      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
     }
   ]
 }

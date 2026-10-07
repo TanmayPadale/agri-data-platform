@@ -14,6 +14,5 @@ data:
   SENSOR_DLQ_TOPIC: "sensor.readings.dlq"
   CONSUMER_GROUP: "agri-loader"
   METRICS_PORT: "8000"
-  # The containers run with a read-only root filesystem. The weather job lands its day
-  # files before loading them, so they go to /tmp, the one writable mount (an emptyDir).
-  AGRI_DATA_DIR: "/tmp/data"
+  # Not needed here: AGRI_DATA_DIR. The image already points it at /tmp/agri-data
+  # (ingest/Dockerfile), and /tmp is the one writable mount in these read-only pods.
