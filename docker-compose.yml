@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: agri
+      POSTGRES_PASSWORD: agri
+      POSTGRES_DB: agri
+    ports: ["5432:5432"]          # if 5432 is taken, use "5433:5432" and adjust the DSN
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U agri -d agri"]   # TCP, so the init-time socket-only server doesn't count
+      interval: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:

@@ -6,7 +6,11 @@ authors = [
     { name = "Tanmay Padale", email = "tanmaypadale24@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.13.5",
+]
 
 [project.scripts]
 agri-data-platform = "agri_data_platform:main"
@@ -20,3 +24,15 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.9",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["slow: long-running tests such as LLM evals"]
