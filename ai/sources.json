@@ -1,0 +1,65 @@
+{
+  "_note": "Free agronomy references for the RAG assistant. ai/fetch_docs.py downloads them into ai/docs/ (not committed: the publishers keep their copyright, and their sites are the canonical copy). Every chunk keeps its file name and page so answers can cite it.",
+  "documents": [
+    {
+      "file": "fao56_ch1_evapotranspiration.html",
+      "url": "https://www.fao.org/4/x0490e/x0490e04.htm",
+      "title": "FAO Irrigation and Drainage Paper 56, Chapter 1: Introduction to evapotranspiration",
+      "publisher": "FAO"
+    },
+    {
+      "file": "fao56_ch6_crop_coefficient.html",
+      "url": "https://www.fao.org/4/x0490e/x0490e0b.htm",
+      "title": "FAO Irrigation and Drainage Paper 56, Chapter 6: ETc, single crop coefficient (Kc)",
+      "publisher": "FAO"
+    },
+    {
+      "file": "fao56_ch8_water_stress.html",
+      "url": "https://www.fao.org/4/x0490e/x0490e0e.htm",
+      "title": "FAO Irrigation and Drainage Paper 56, Chapter 8: ETc under soil water stress conditions",
+      "publisher": "FAO"
+    },
+    {
+      "file": "fao_scheduling_ch2_water_shortage_yield.html",
+      "url": "https://www.fao.org/4/t7202e/t7202e05.htm",
+      "title": "FAO Irrigation Water Management: Irrigation Scheduling, Chapter 2: The influence of water shortages on yields",
+      "publisher": "FAO"
+    },
+    {
+      "file": "fao_scheduling_ch3_field_crops.html",
+      "url": "https://www.fao.org/4/t7202e/t7202e06.htm",
+      "title": "FAO Irrigation Water Management: Irrigation Scheduling, Chapter 3: Irrigation schedule for crops other than rice",
+      "publisher": "FAO"
+    },
+    {
+      "file": "fao_scheduling_ch4_paddy_rice.html",
+      "url": "https://www.fao.org/4/t7202e/t7202e07.htm",
+      "title": "FAO Irrigation Water Management: Irrigation Scheduling, Chapter 4: Irrigation schedule for paddy rice",
+      "publisher": "FAO"
+    },
+    {
+      "file": "fao_irrigation_manual_vol1.pdf",
+      "url": "https://www.fao.org/3/a-ai590e.pdf",
+      "title": "FAO Irrigation Manual, Volume I (Savva and Frenken)",
+      "publisher": "FAO"
+    },
+    {
+      "file": "usda_nrcs_soil_moisture_feel.pdf",
+      "url": "https://nutrientmanagement.tamu.edu/wp-content/uploads/sites/25/legacy-files/content/tools/estimatingsoilmoisture.pdf",
+      "title": "USDA NRCS: Estimating Soil Moisture by Feel and Appearance",
+      "publisher": "USDA NRCS (hosted by Texas A&M)"
+    },
+    {
+      "file": "ucanr_feel_and_appearance.pdf",
+      "url": "https://ccfruitandnuts.ucanr.edu/sites/default/files/2018-06/285255.pdf",
+      "title": "Irrigation water management: the feel and appearance method",
+      "publisher": "UC Agriculture and Natural Resources"
+    },
+    {
+      "file": "fao_soil_moisture_by_touch.pdf",
+      "url": "https://www.fao.org/fileadmin/user_upload/GSP/GSDP/Field_exercises/New_format_EN/P06a-moisture-touch-EN.pdf",
+      "title": "FAO Global Soil Partnership field exercise: soil moisture by touch",
+      "publisher": "FAO"
+    }
+  ]
+}

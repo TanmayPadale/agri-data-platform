@@ -18,3 +18,7 @@ reports/*.md
 transform/.user.yml
 infra/.build/
 infra/backend/aws.s3.tfbackend
+
+# downloaded agronomy references (see ai/sources.json)
+ai/docs/
+ai/evals/results/
