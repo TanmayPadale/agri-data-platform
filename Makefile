@@ -108,3 +108,24 @@ freshness: ## Is ingestion still arriving? Warns/errors on stale raw tables
 
 signal: ## Latest irrigation decision for every field
 	@$(PSQL) -c "select field_id, crop, day, moisture_3d_avg_pct as moisture_3d, rain_mm, irrigate, reason from marts.agg_irrigation_signal where day = (select max(day) from marts.agg_irrigation_signal where irrigate is not null) order by field_id"
+
+# ---------------------------------------------------------------- Day 4
+
+.PHONY: airflow-install airflow backfill test-dags
+
+AIRFLOW_ENV := source scripts/airflow-env.sh &&
+FROM ?= $(shell python3 -c "import datetime as d; print(d.date.today() - d.timedelta(days=15))")
+TO ?= $(shell python3 -c "import datetime as d; print(d.date.today() - d.timedelta(days=2))")
+
+airflow-install: ## Once: Airflow 3 in its own venv (.airflow/), metadata DB, dbt pool
+	$(AIRFLOW_ENV) airflow_install
+
+airflow: ## Airflow standalone, UI on http://localhost:8080 (on 8 GB, stop Kafka first)
+	$(AIRFLOW_ENV) airflow standalone
+
+backfill: ## Backfill agri_daily (Airflow running): make backfill FROM=2026-09-21 TO=2026-10-04
+	$(AIRFLOW_ENV) airflow backfill create --dag-id agri_daily --from-date $(FROM) --to-date $(TO) \
+		--max-active-runs 3 --reprocess-behavior completed
+
+test-dags: ## DAG integrity tests, run inside the Airflow venv
+	$(AIRFLOW_ENV) python -m pytest -q tests/test_dags.py -p no:cacheprovider
