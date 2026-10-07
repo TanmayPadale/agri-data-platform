@@ -19,6 +19,8 @@ DAGS = Path(__file__).resolve().parent.parent / "dags"
 
 @pytest.fixture(scope="module")
 def dagbag() -> DagBag:
+    # Parsed straight from the files; tests read dagbag.dags, which needs no
+    # metadata database (dagbag.get_dag would query one).
     return DagBag(dag_folder=str(DAGS))  # examples are off via AIRFLOW__CORE__LOAD_EXAMPLES
 
 
@@ -28,7 +30,7 @@ def test_dags_import_without_errors(dagbag):
 
 
 def test_agri_daily_shape(dagbag):
-    dag = dagbag.get_dag("agri_daily")
+    dag = dagbag.dags["agri_daily"]
     assert {"extract", "load", "dbt_build", "quality_check", "summary"} == set(dag.task_ids)
     assert dag.get_task("dbt_build").upstream_task_ids == {"load"}
     assert dag.get_task("quality_check").upstream_task_ids == {"load", "dbt_build"}
@@ -37,22 +39,22 @@ def test_agri_daily_shape(dagbag):
 
 def test_every_task_retries(dagbag):
     for dag_id in ("agri_daily", "irrigation_report"):
-        for task in dagbag.get_dag(dag_id).tasks:
+        for task in dagbag.dags[dag_id].tasks:
             assert task.retries >= 1, f"{dag_id}.{task.task_id} has no retries"
 
 
 def test_daily_runs_get_a_real_data_interval(dagbag):
     """The Airflow 3 trap: only a data-interval timetable makes `day` mean yesterday."""
-    assert isinstance(dagbag.get_dag("agri_daily").timetable, CronDataIntervalTimetable)
+    assert isinstance(dagbag.dags["agri_daily"].timetable, CronDataIntervalTimetable)
 
 
 def test_dbt_runs_one_at_a_time(dagbag):
-    assert dagbag.get_dag("agri_daily").get_task("dbt_build").pool == "dbt"
+    assert dagbag.dags["agri_daily"].get_task("dbt_build").pool == "dbt"
 
 
 def test_report_waits_for_the_quality_check(dagbag):
     """The asset is emitted by quality_check, so a failed check never triggers a report."""
-    tasks = {t.task_id: t for t in dagbag.get_dag("agri_daily").tasks}
+    tasks = {t.task_id: t for t in dagbag.dags["agri_daily"].tasks}
     assert [a.name for a in tasks["quality_check"].outlets] == ["agg_irrigation_signal"]
     assert tasks["dbt_build"].outlets == []
 
