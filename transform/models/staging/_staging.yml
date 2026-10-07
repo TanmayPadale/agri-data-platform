@@ -1,0 +1,30 @@
+models:
+  - name: stg_weather
+    description: Daily weather per farm, renamed and typed. One row per location per local day.
+    columns:
+      - name: location_id
+        data_tests: [not_null]
+      - name: weather_date
+        description: The farm's local calendar day.
+        data_tests: [not_null]
+
+  - name: stg_sensor_readings
+    description: Soil-moisture readings, one row per event_id.
+    columns:
+      - name: event_id
+        description: The producer's id for the reading; duplicates are removed above.
+        data_tests: [unique, not_null]
+      - name: sensor_id
+        data_tests:
+          - not_null
+          - relationships:  # every reading belongs to a sensor we know about
+              arguments:
+                to: ref('sensors')
+                field: sensor_id
+      - name: reading_ts
+        description: Event time, when the sensor measured (UTC).
+        data_tests: [not_null]
+      - name: soil_moisture_pct
+        data_tests:
+          - value_between:
+              arguments: {min_value: 0, max_value: 100}

@@ -1,0 +1,26 @@
+seeds:
+  - name: locations
+    description: The two farms (shared with ingest/weather.py, which reads the same file).
+    columns:
+      - name: location_id
+        data_tests: [unique, not_null]
+      - name: timezone
+        description: IANA timezone; every "day" in the marts is a local day at the farm.
+        data_tests: [not_null]
+
+  - name: sensors
+    description: >
+      Which field each sensor is on. Reference data that changes slowly: when a
+      sensor is moved, edit this file, run `dbt seed` and `dbt snapshot`, and the
+      sensors_snapshot keeps both versions (SCD type 2).
+    columns:
+      - name: sensor_id
+        data_tests: [unique, not_null]
+      - name: field_id
+        data_tests: [not_null]
+      - name: location_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('locations')
+                field: location_id

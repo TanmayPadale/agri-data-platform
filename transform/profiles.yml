@@ -1,0 +1,36 @@
+# Connection settings, read from environment variables with local defaults that
+# match docker-compose.yml. Nothing secret is stored here.
+agri:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('AGRI_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('AGRI_DB_PORT', '5432') | as_number }}"
+      user: "{{ env_var('AGRI_DB_USER', 'agri') }}"
+      password: "{{ env_var('AGRI_DB_PASSWORD', 'agri') }}"
+      dbname: "{{ env_var('AGRI_DB_NAME', 'agri') }}"
+      schema: public  # models pick their own schema (staging, marts): see macros/
+      threads: 4
+    ci:  # GitHub Actions: a fresh Postgres service container, same credentials
+      type: postgres
+      host: "{{ env_var('AGRI_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('AGRI_DB_PORT', '5432') | as_number }}"
+      user: "{{ env_var('AGRI_DB_USER', 'agri') }}"
+      password: "{{ env_var('AGRI_DB_PASSWORD', 'agri') }}"
+      dbname: "{{ env_var('AGRI_DB_NAME', 'agri') }}"
+      schema: public
+      threads: 2
+    # Snowflake (optional, Day 3 stretch): uv add --group transform dbt-snowflake, then
+    # uncomment and run with DBT_TARGET=snowflake. The models are plain SQL apart from
+    # a few Postgres casts, which is the point of keeping logic in dbt.
+    # snowflake:
+    #   type: snowflake
+    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
+    #   authenticator: externalbrowser
+    #   role: SYSADMIN
+    #   warehouse: LEARN_WH
+    #   database: AGRI
+    #   schema: PUBLIC
+    #   threads: 4

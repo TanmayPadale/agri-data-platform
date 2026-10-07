@@ -1,0 +1,5 @@
+# dbt_utils supplies date_spine and unique_combination_of_columns.
+# Installed from git (a pinned tag) so `dbt deps` works wherever git can reach GitHub.
+packages:
+  - git: "https://github.com/dbt-labs/dbt-utils.git"
+    revision: 1.4.1

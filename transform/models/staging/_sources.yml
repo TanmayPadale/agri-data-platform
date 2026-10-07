@@ -1,0 +1,33 @@
+sources:
+  - name: raw
+    schema: raw
+    description: Landing tables written only by the ingest code. Never edited by hand.
+    tables:
+      - name: weather_daily
+        description: One row per farm per local day from Open-Meteo (ingest/weather.py).
+        config:
+          loaded_at_field: loaded_at
+          # `dbt source freshness` warns when the daily load is late, and errors when
+          # it has clearly stopped. This is the batch-side health check.
+          freshness:
+            warn_after: {count: 2, period: day}
+            error_after: {count: 4, period: day}
+        columns:
+          - name: location_id
+          - name: day
+          - name: rain_mm
+          - name: loaded_at
+
+      - name: sensor_readings
+        description: One row per soil-moisture reading from Kafka (ingest/sensor_consumer.py).
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 1, period: hour}
+            error_after: {count: 1, period: day}
+        columns:
+          - name: event_id
+          - name: sensor_id
+          - name: ts
+          - name: soil_moisture_pct
+          - name: loaded_at
