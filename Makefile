@@ -9,6 +9,10 @@ export
 
 PSQL := docker compose exec -T postgres psql -U agri -d agri
 
+# dbt reads these, so `uv run dbt ...` works from the repo root.
+export DBT_PROJECT_DIR := $(CURDIR)/transform
+export DBT_PROFILES_DIR := $(CURDIR)/transform
+
 .PHONY: help
 help: ## List the targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -84,3 +88,23 @@ group: ## Show the consumer group: who owns which partition, and the lag
 
 dlq: ## Print what is parked in the dead-letter topic, with its headers
 	$(KAFKA_BIN)/kafka-console-consumer.sh $(BOOTSTRAP) --topic sensor.readings.dlq --from-beginning --timeout-ms 5000 --formatter-property print.key=true --formatter-property print.headers=true
+
+# ---------------------------------------------------------------- Day 3
+
+.PHONY: dbt-deps dbt-build dbt-docs freshness signal
+
+dbt-deps: ## Install dbt packages (dbt_utils, pinned in transform/packages.yml)
+	uv run dbt deps
+
+dbt-build: dbt-deps ## Seeds, snapshot, models and every test, in dependency order
+	uv run dbt build
+
+dbt-docs: ## Build the dbt docs site (lineage graph) and serve it on :8081
+	uv run dbt docs generate
+	uv run dbt docs serve --port 8081
+
+freshness: ## Is ingestion still arriving? Warns/errors on stale raw tables
+	uv run dbt source freshness
+
+signal: ## Latest irrigation decision for every field
+	@$(PSQL) -c "select field_id, crop, day, moisture_3d_avg_pct as moisture_3d, rain_mm, irrigate, reason from marts.agg_irrigation_signal where day = (select max(day) from marts.agg_irrigation_signal where irrigate is not null) order by field_id"

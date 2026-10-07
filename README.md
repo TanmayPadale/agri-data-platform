@@ -10,6 +10,8 @@ This is the capstone of my Stack Refresh Sprint, built one layer a day.
   validates every message, parks bad ones in a dead-letter topic, writes with an
   idempotent insert and commits the offset only after the write, so a crash causes
   reprocessing but never a duplicate row.
+- **Day 3:** dbt models the raw tables into staging views and marts with a stated grain,
+  a field-by-day irrigation signal, 34 tests and an SCD2 snapshot of sensor placements.
 
 ## Quickstart
 
@@ -22,6 +24,9 @@ make queries             # five analytical queries over the result
 make up-stream           # + Kafka 4 (KRaft) and Redis, topics created
 make history             # 21 days of past sensor readings into Kafka
 make consume             # Kafka -> raw.sensor_readings (Ctrl+C stops)
+
+make dbt-build           # staging, marts, snapshot and every test
+make signal              # latest irrigation decision for every field
 make test
 ```
 
