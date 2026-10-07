@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 
 from ingest.models import SensorReading
 from ingest.sensor_producer import (
+    REPLAY_HEADER,
+    ReadingProducer,
     build_fleet,
     history_timestamps,
     load_sensors,
@@ -58,3 +60,23 @@ def test_wire_format_round_trips_through_the_contract():
     payload = json.loads(serialize(reading))
     assert isinstance(payload["ts"], float)  # Unix seconds on the wire
     assert SensorReading.model_validate(payload) == reading
+
+
+def test_headers_reach_the_kafka_client():
+    """History is sent with the replay header; live readings without it."""
+
+    class RecordingProducer:
+        def __init__(self):
+            self.calls = []
+
+        def produce(self, topic, **kwargs):
+            self.calls.append(kwargs)
+
+        def poll(self, timeout):
+            return 0
+
+    client = RecordingProducer()
+    out = ReadingProducer(client, "sensor.readings")
+    out.send("S-01", b"{}")
+    out.send("S-01", b"{}", headers=REPLAY_HEADER)
+    assert [c["headers"] for c in client.calls] == [None, [("replay", b"1")]]

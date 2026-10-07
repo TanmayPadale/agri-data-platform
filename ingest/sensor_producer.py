@@ -107,6 +107,12 @@ def history_timestamps(days: int, step: timedelta, now: datetime) -> Iterator[da
         yield datetime.fromtimestamp(t, UTC)
 
 
+# Day 7: history is old on purpose. The header marks it as a replay, so the consumer
+# can store that fact and the latency SLI (sql/slo/02) measures live readings only.
+# Metadata goes in a header, not the payload: the reading itself is the same either way.
+REPLAY_HEADER = [("replay", b"1")]
+
+
 def serialize(reading: SensorReading) -> bytes:
     payload = reading.model_dump(mode="json")
     payload["ts"] = reading.ts.timestamp()  # Unix seconds on the wire, like a real device
@@ -129,11 +135,15 @@ class ReadingProducer:
         else:
             self.delivered += 1
 
-    def send(self, key: str, value: bytes) -> None:
+    def send(self, key: str, value: bytes, headers: list[tuple[str, bytes]] | None = None) -> None:
         while True:
             try:
                 self.producer.produce(
-                    self.topic, key=key, value=value, on_delivery=self._on_delivery
+                    self.topic,
+                    key=key,
+                    value=value,
+                    headers=headers,
+                    on_delivery=self._on_delivery,
                 )
                 break
             except BufferError:
@@ -188,7 +198,8 @@ def main(argv: list[str] | None = None) -> int:
         now = datetime.now(UTC)
         for at in history_timestamps(args.history_days, timedelta(minutes=args.step_minutes), now):
             for sim in fleet:
-                out.send(sim.sensor.sensor_id, serialize(make_reading(sim, at, rng)))
+                reading = serialize(make_reading(sim, at, rng))
+                out.send(sim.sensor.sensor_id, reading, headers=REPLAY_HEADER)
         out.flush()
         print(f"history: delivered {out.delivered} readings, {out.failed} failed")
         return 0 if out.failed == 0 else 1

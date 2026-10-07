@@ -57,6 +57,19 @@ def test_happy_path_stores_then_commits(autocommit_conn, db):
     assert cache.store["latest:S-05"]["moisture"] == 19.4
 
 
+def test_replayed_history_is_marked_so_the_latency_sli_can_skip_it(autocommit_conn, db):
+    loader = make_loader(autocommit_conn)
+    live = message()
+    replay = message({**READING, "event_id": "S-05-1", "ts": 1790835000.0}, offset=4183)
+    replay._headers = [("replay", b"1")]  # what --history-days sends
+    assert loader.handle(live) == "stored"
+    assert loader.handle(replay) == "stored"
+    flags = db.execute(
+        "SELECT kafka_offset, replayed FROM raw.sensor_readings ORDER BY 1"
+    ).fetchall()
+    assert flags == [(4182, False), (4183, True)]
+
+
 def test_redelivery_after_a_crash_writes_nothing_new(autocommit_conn, db):
     """The crash lab: the row was written, then the process died before Redis and
     the offset commit. Kafka delivers the same record again to a fresh process."""

@@ -55,8 +55,8 @@ log = logging.getLogger(__name__)
 
 INSERT_SQL = """
 INSERT INTO raw.sensor_readings
-    (sensor_id, ts, soil_moisture_pct, event_id, kafka_partition, kafka_offset)
-VALUES (%s, %s, %s, %s, %s, %s)
+    (sensor_id, ts, soil_moisture_pct, event_id, kafka_partition, kafka_offset, replayed)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (sensor_id, ts) DO NOTHING
 """
 SEEN_TTL_SECONDS = 3600  # Redis remembers an event id for one hour
@@ -141,6 +141,7 @@ class SensorLoader:
                 reading.event_id,
                 msg.partition(),
                 msg.offset(),
+                is_replay(msg),
             ),
         )
         return cur.rowcount == 1  # 0 means ON CONFLICT found the row already there
@@ -229,6 +230,11 @@ class SensorLoader:
             if total and total % 5000 == 0:
                 log.info("progress: %s", asdict(self.counts))
         return self.counts
+
+
+def is_replay(msg: Message) -> bool:
+    """Did the producer mark this message as replayed history? (Day 7, see REPLAY_HEADER)"""
+    return any(key == "replay" and value == b"1" for key, value in (msg.headers() or []))
 
 
 def describe(error: Exception) -> str:

@@ -3,7 +3,8 @@
 --
 -- loaded_at - ts is processing time minus event time: everything between the sensor
 -- and the table (producer, broker, consumer, database). Replayed history (make history)
--- is old on purpose and fails this check; the SLO is about live readings.
+-- is old on purpose, so it is excluded: the producer marks it with a Kafka header and
+-- the consumer stores that as `replayed`. A backfill is not live traffic.
 SELECT
     count(*)                                                              AS readings,
     count(*) FILTER (WHERE loaded_at - ts < interval '60 seconds')        AS within_60s,
@@ -13,5 +14,5 @@ SELECT
     percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM loaded_at - ts))
                                                                           AS p95_latency_s
 FROM raw.sensor_readings
-WHERE loaded_at >= now() - interval '30 days'
-  AND ts >= now() - interval '30 days';
+WHERE NOT replayed
+  AND loaded_at >= now() - interval '30 days';
