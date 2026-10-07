@@ -9,3 +9,9 @@ transform/logs/
 transform/dbt_packages/
 .terraform/
 *.tfstate*
+# landed files and generated reports
+data/
+reports/*.md
+# local tool state
+.airflow/
+*.tmp
