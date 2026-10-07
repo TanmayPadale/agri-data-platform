@@ -36,8 +36,20 @@ def test_tables_keep_columns_aligned_and_their_header(html_file):
     sections = extract_html(html_file)
     table = next(s for s in sections if s.header)
     assert table.header == "Table columns: Crop | [image] | Kc mid | Kc end"
-    assert "Sweet Peppers (bell) | - | 1.05^2 | 0.90" in table.text.splitlines()
+    assert "Sweet Peppers (bell) | - | 1.05 (footnote 2) | 0.90" in table.text.splitlines()
     assert all("ignore()" not in s.text for s in sections)  # scripts are skipped
+
+
+def test_superscripts_read_the_way_a_person_reads_them(tmp_path):
+    page = tmp_path / "sup.html"
+    page.write_text(
+        "<p>ET is in mm day<sup>-1</sup>, volume in m<sup>3</sup>, on the 1<sup>st</sup>.</p>"
+        "<table><tr><td>Crop</td><td>Kc</td></tr>"
+        "<tr><td>Alfalfa<sup>4</sup></td><td>0.95<sup>3</sup></td></tr></table>"
+    )
+    text = "\n".join(s.text for s in extract_html(page))
+    assert "mm day^-1" in text and "m^3" in text and "1st" in text  # units and ordinals
+    assert "Alfalfa^4 | 0.95 (footnote 3)" in text  # after a number: a footnote marker
 
 
 def test_headings_start_new_sections(html_file):
@@ -51,7 +63,7 @@ def test_tables_are_indexed_one_row_per_chunk_with_the_column_names(html_file):
     table = next(s for s in sections if s.header)
     chunks = chunk_document("p.html", [table], 500, 50)
     assert [c.text.splitlines()[1] for c in chunks] == [
-        "Sweet Peppers (bell) | - | 1.05^2 | 0.90",
+        "Sweet Peppers (bell) | - | 1.05 (footnote 2) | 0.90",
         "Tomato | - | 1.15 | 0.70",
     ]
     assert all(c.text.startswith("Table columns: Crop |") for c in chunks)

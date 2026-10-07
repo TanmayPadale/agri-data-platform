@@ -7,8 +7,8 @@ Pipeline for each document (PDF, HTML or Markdown):
 
   1. extract   text per page (PDF) or per section under a heading (HTML, Markdown).
                Each HTML table becomes its own section, one line per row
-               ("Sweet Peppers (bell) | - | 1.05^2 | 0.90 | 0.7"), with its first row
-               kept as the column names.
+               ("Sweet Peppers (bell) | - | 1.05 (footnote 2) | 0.90 | 0.7"), with its
+               first row kept as the column names.
   2. chunk     text: about 500 tokens each, starting fresh at headings, with a 50-token
                overlap so a sentence cut at a boundary is still whole in one of the two.
                tables: one chunk per row, each starting with the column names. A chunk
@@ -77,7 +77,7 @@ class _HTMLSections(HTMLParser):
 
     Inside a table each row becomes one line of cells joined by " | ", empty cells
     become "-" so columns stay aligned, and the first row is kept as the header.
-    Superscripts become "^2" so a footnote marker cannot fuse with a number.
+    Superscripts are written so they cannot fuse with a number (see _superscript).
     """
 
     SKIP = {"script", "style", "nav", "head"}
@@ -91,6 +91,7 @@ class _HTMLSections(HTMLParser):
         self.table_depth = 0
         self.row: list[str] | None = None
         self.cell: list[str] = []
+        self.sup: list[str] | None = None  # text inside <sup>, collected until </sup>
 
     @staticmethod
     def _new(table: bool = False) -> dict:
@@ -99,7 +100,9 @@ class _HTMLSections(HTMLParser):
     def _text(self, data: str) -> None:
         if self.skipping:
             return
-        if self.row is not None:
+        if self.sup is not None:
+            self.sup.append(data)
+        elif self.row is not None:
             self.cell.append(data)
         else:
             self.sections[-1]["parts"].append(data)
@@ -116,7 +119,7 @@ class _HTMLSections(HTMLParser):
         elif tag in ("td", "th"):
             self.cell = []
         elif tag == "sup":
-            self._text("^")
+            self.sup = []
         elif tag == "img":
             self._text("[image]")
         elif tag in self.HEADINGS and not self.table_depth:
@@ -127,6 +130,9 @@ class _HTMLSections(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag in self.SKIP:
             self.skipping = max(0, self.skipping - 1)
+        elif tag == "sup" and self.sup is not None:
+            mark, self.sup = "".join(self.sup).strip(), None
+            self._text(self._superscript(mark))
         elif tag in ("td", "th") and self.row is not None:
             self.row.append(" ".join("".join(self.cell).split()) or "-")
             self.cell = []
@@ -148,6 +154,22 @@ class _HTMLSections(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         self._text(data)
+
+    def _superscript(self, mark: str) -> str:
+        """Write a superscript so that a model reads it the way a person would.
+
+        A first version wrote every superscript as ^N, and the table cell for sweet
+        peppers became "1.05^2": both the assistant and the judge read it as 1.05
+        squared. In these FAO tables a digit-only superscript right after a number is
+        a footnote marker, so it becomes "1.05 (footnote 2)". Ordinals stay words
+        (1st), and anything else keeps a caret, which is right for units (m^-1, m^3).
+        """
+        if mark in ("st", "nd", "rd", "th"):
+            return mark
+        after_number = "".join(self.cell).rstrip()[-1:].isdigit()
+        if self.row is not None and mark.isdigit() and after_number:
+            return f" (footnote {mark})"
+        return "^" + mark
 
 
 def extract_html(path: Path) -> list[Section]:
