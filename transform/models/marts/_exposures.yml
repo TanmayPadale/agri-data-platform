@@ -1,0 +1,42 @@
+# Exposures: who reads the marts. They put the consumers of the data on the lineage
+# graph (make dbt-docs), so before changing a column you can see what would break:
+#   uv run dbt ls --select +exposure:agri_data_mcp_server --resource-type model
+
+exposures:
+  - name: irrigation_report
+    label: Daily irrigation report
+    type: analysis
+    maturity: medium
+    description: >
+      Markdown report written by the irrigation_report DAG (dags/irrigation_report.py)
+      whenever the daily run's quality check marks the signal as updated.
+    depends_on:
+      - ref('agg_irrigation_signal')
+    owner:
+      name: Tanmay Padale
+
+  - name: field_assistant
+    label: Field assistant (RAG + tool)
+    type: application
+    maturity: medium
+    description: >
+      The Day 6 assistant (ai/ask.py). Its get_field_conditions tool reads these
+      marts with fixed, parameterised SQL; agronomy answers come from the documents.
+    depends_on:
+      - ref('agg_irrigation_signal')
+      - ref('dim_field')
+    owner:
+      name: Tanmay Padale
+
+  - name: agri_data_mcp_server
+    label: agri-data MCP server
+    type: application
+    maturity: medium
+    description: >
+      The Day 8 MCP server (ai/mcp_server.py) for Claude Code, Claude Desktop and any
+      other MCP client. Connects as the read-only mcp_reader role.
+    depends_on:
+      - ref('agg_irrigation_signal')
+      - ref('dim_field')
+    owner:
+      name: Tanmay Padale

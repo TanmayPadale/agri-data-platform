@@ -33,6 +33,11 @@ This is the capstone of my Stack Refresh Sprint, built one layer a day.
   scrapes it and Kafka lag, three alert rules have unit tests, Grafana draws a
   provisioned dashboard, and two SLOs (weather freshness, sensor latency) are measured
   in SQL against their error budgets.
+- **Day 8:** the same field tools, served over MCP to Claude Code, Claude Desktop or any
+  MCP client, with a schema resource built from the dbt docs and a ready-made brief
+  prompt. The server logs in as a Postgres role that can read the marts and nothing
+  else, with every transaction read-only by default. Tests prove an injected field id
+  never reaches SQL and that the role cannot write, even when the client asks it to.
 
 ## Quickstart
 
@@ -72,7 +77,38 @@ make slo                 # the two SLIs against their targets
 make alerts-check        # promtool: config, rules and the alert unit tests
 make k8s-validate        # manifests against the Kubernetes 1.37 schemas
 make verify-mac          # kind: build, load, deploy two replicas and the CronJob, check
+
+make ddl                 # also creates the read-only mcp_reader role
+make mcp-check           # MCP tests: tools, injection, the read-only role, a real stdio session
+make mcp-inspect         # the MCP Inspector in your browser (needs Node)
 make test
+```
+
+## Use the farm data from Claude (Day 8)
+
+**Claude Code:** open this folder. `.mcp.json` registers the `agri-data` server; approve
+it when asked, then try "Which fields need irrigation today, and why?". To add it by
+hand instead:
+
+```bash
+claude mcp add --env AGRI_MCP_DSN=postgresql://mcp_reader:mcp_reader@localhost:5432/agri \
+  agri-data -- uv run --directory /absolute/path/to/agri-data-platform --quiet python -m ai.mcp_server
+```
+
+**Claude Desktop:** add this to `~/Library/Application Support/Claude/claude_desktop_config.json`
+and restart the app. Desktop starts servers with a minimal PATH, so use the full path
+that `which uv` prints.
+
+```json
+{
+  "mcpServers": {
+    "agri-data": {
+      "command": "/absolute/path/to/uv",
+      "args": ["run", "--directory", "/absolute/path/to/agri-data-platform", "--quiet",
+               "python", "-m", "ai.mcp_server"]
+    }
+  }
+}
 ```
 
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).

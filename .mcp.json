@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agri-data": {
+      "command": "uv",
+      "args": ["run", "--quiet", "python", "-m", "ai.mcp_server"],
+      "env": {
+        "AGRI_MCP_DSN": "${AGRI_MCP_DSN:-postgresql://mcp_reader:mcp_reader@localhost:5432/agri}"
+      }
+    }
+  }
+}

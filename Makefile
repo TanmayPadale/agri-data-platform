@@ -212,3 +212,13 @@ k8s-validate: ## Render the kustomization and check it against the Kubernetes sc
 
 verify-mac: ## Day 7 on your Mac: build, load into kind, deploy, check (needs make up-stream)
 	bash scripts/verify_mac.sh
+
+# ---------------------------------------------------------------- Day 8
+
+.PHONY: mcp-inspect mcp-check
+
+mcp-inspect: ## Try the MCP server in the MCP Inspector, in your browser (needs Node)
+	npx -y @modelcontextprotocol/inspector uv run --quiet python -m ai.mcp_server
+
+mcp-check: ddl ## The MCP server tests, including the read-only role and a real stdio session
+	uv run pytest -q tests/test_mcp_server.py

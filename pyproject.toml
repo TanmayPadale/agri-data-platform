@@ -25,7 +25,9 @@ build-backend = "uv_build"
 [dependency-groups]
 ai = [
     "anthropic>=0.70",
+    "mcp>=2.3",
     "pypdf>=5",
+    "pyyaml>=6",
 ]
 aws = [
     "boto3>=1.40",

@@ -26,6 +26,8 @@ from ingest.db import connect
 
 Query = Callable[[str, tuple[Any, ...]], list[dict[str, Any]]]
 
+FIELD_ID_PATTERN = r"^F-\d{2}$"  # also the MCP tool's schema (Day 8), so both check the same
+
 
 def run_query(
     sql: str, params: tuple[Any, ...] = (), dsn: str | None = None
@@ -39,7 +41,7 @@ def run_query(
 
 
 class FieldConditionsInput(BaseModel):
-    field_id: str = Field(pattern=r"^F-\d{2}$", description="Field id, for example F-03")
+    field_id: str = Field(pattern=FIELD_ID_PATTERN, description="Field id, for example F-03")
     days: int = Field(default=7, ge=1, le=30, description="How many recent days, 1 to 30")
 
 

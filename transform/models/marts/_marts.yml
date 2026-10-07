@@ -70,14 +70,39 @@ models:
             combination_of_columns: [field_id, day]
     columns:
       - name: field_id
+        description: Field id, F-01 to F-10.
         data_tests:
           - not_null
           - relationships:
               arguments:
                 to: ref('dim_field')
                 field: field_id
+      - name: field_name
+        description: Display name of the field.
+      - name: crop
+        description: The crop growing in the field.
+      - name: location_id
+        description: The farm (1 = Jawali, Satara; 2 = Griffith, NSW), see dim_location.
+      - name: day
+        description: Local calendar day at the farm.
+      - name: moisture_pct
+        description: That day's average soil moisture across the field's sensors, in percent.
       - name: moisture_3d_avg_pct
         description: Average of the daily field moisture over the last 3 calendar days.
+      - name: moisture_days_in_window
+        description: How many of those 3 days had readings (1 to 3).
+      - name: readings
+        description: Number of sensor readings behind that day's moisture.
+      - name: rain_mm
+        description: Rain at the farm that day, in mm. Null until the day's weather arrives.
+      - name: temp_max_c
+        description: Maximum air temperature that day, in degrees Celsius.
+      - name: et0_mm
+        description: FAO reference evapotranspiration that day, in mm (water demand).
+      - name: moisture_threshold_pct
+        description: Below this 3-day moisture the field is dry (dbt var moisture_threshold_pct).
+      - name: rain_threshold_mm
+        description: At or above this much rain, no irrigation is needed (dbt var rain_threshold_mm).
       - name: irrigate
         description: true = water it, false = no need, null = not enough data to decide.
       - name: reason
