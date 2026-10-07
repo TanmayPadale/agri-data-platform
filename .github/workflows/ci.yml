@@ -1,0 +1,112 @@
+# CI: every pull request and every push to main runs four jobs in parallel.
+# Mark them as required checks in branch protection and a red job blocks the merge.
+#
+#   test       ruff, the SQL files, pytest against a real Postgres, dbt build
+#   dags       Airflow DAG integrity tests, in Airflow's own environment
+#   terraform  fmt + validate, with no state and no cloud credentials
+#   image      the consumer image builds, runs as non-root, stays under 200 MB
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read  # the workflow's token can read the repo and nothing else
+
+concurrency:  # a newer push to the same branch cancels the run still in progress
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint, tests, dbt
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:  # the same image as docker-compose.yml, so CI tests the real thing
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: agri
+          POSTGRES_PASSWORD: agri
+          POSTGRES_DB: agri
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U agri -d agri"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      AGRI_DSN: postgresql://agri:agri@localhost:5432/agri
+      DBT_PROJECT_DIR: transform
+      DBT_PROFILES_DIR: transform
+      DBT_TARGET: ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - name: Install exactly what uv.lock says
+        run: uv sync --locked
+      - name: Lint and format check
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Create schemas, tables and roles from sql/
+        run: uv run python -m ingest.db
+      - name: Tests (slow LLM evals excluded)
+        run: uv run pytest -q -m "not slow"
+      - name: dbt build on empty tables (every model compiles, every test runs)
+        run: |
+          uv run dbt deps
+          uv run dbt build
+
+  dags:
+    name: Airflow DAG integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_FOLDER: ${{ github.workspace }}/dags
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Install Airflow with its constraints file (as scripts/airflow-env.sh does)
+        run: |
+          curl -sSfL -o constraints.txt \
+            https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt
+          uv venv --python 3.12 .airflow-venv
+          uv pip install --python .airflow-venv/bin/python --constraint constraints.txt \
+            "apache-airflow[postgres]==3.3.2" httpx pydantic "psycopg[binary]" pytest
+      - name: DAG tests
+        run: .airflow-venv/bin/python -m pytest -q tests/test_dags.py -p no:cacheprovider
+
+  terraform:
+    name: terraform fmt + validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.16.5
+      - run: terraform -chdir=infra fmt -check -recursive
+      - run: terraform -chdir=infra init -backend=false -input=false
+      - run: terraform -chdir=infra validate
+
+  image:
+    name: consumer image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build
+        run: docker build -f ingest/Dockerfile -t agri/sensor-consumer:ci .
+      - name: Imports, non-root user, size budget
+        run: |
+          docker run --rm agri/sensor-consumer:ci python -c "import ingest.sensor_consumer, ingest.weather"
+          test "$(docker run --rm agri/sensor-consumer:ci id -u)" != "0"
+          size_mb=$(docker run --rm --user 0 agri/sensor-consumer:ci du -sxm / | cut -f1)
+          echo "unpacked image size: ${size_mb} MB"
+          test "$size_mb" -lt 200
