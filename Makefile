@@ -166,3 +166,19 @@ tf-emulator-run: ## Run the Lambda handler locally against the emulator, then li
 tf-emulator-destroy: ## Remove everything from the emulator again
 	$(EMULATOR_ENV) $(TF) destroy -auto-approve -var-file=emulator.tfvars
 	$(EMULATOR_ENV) terraform -chdir=infra/bootstrap destroy -auto-approve -var-file=../emulator.tfvars
+
+# ---------------------------------------------------------------- Day 6
+
+.PHONY: docs-fetch docs-ingest ask evals
+
+docs-fetch: ## Download the agronomy references into ai/docs (not committed)
+	uv run python -m ai.fetch_docs
+
+docs-ingest: ddl ## Chunk, embed (Ollama) and store the documents in pgvector
+	uv run python -m ai.ingest_docs
+
+ask: ## Ask the assistant: make ask Q="Should field F-03 be irrigated this week?"
+	uv run python -m ai.ask "$(Q)"
+
+evals: ## Score the assistant on the 15 golden questions
+	uv run python -m ai.evals.run_evals
