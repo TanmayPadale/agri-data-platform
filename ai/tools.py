@@ -7,6 +7,8 @@ read-only operations by name, and this code decides whether and how to run it:
      ("F-01'; DROP TABLE x;--" fails the ^F-\\d{2}$ pattern and never reaches Postgres)
   2. the SQL is fixed and parameterised; the model only supplies values
   3. results are small and labelled, so the model can quote them accurately
+  4. the decision is summed up in code (`summary`), so the model repeats it instead of
+     working it out again from the numbers
 
 Day 8 serves exactly these functions over MCP, connected as a read-only role.
 All SQL goes through a `query` function that tests replace with a fake.
@@ -61,6 +63,7 @@ class FieldConditions(BaseModel):
     crop: str
     location_name: str
     moisture_threshold_pct: float | None
+    summary: str = Field(description="The decision in plain words, worked out from the days")
     days: list[DayConditions]
 
 
@@ -108,14 +111,44 @@ def get_field_conditions(
         (args.field_id, args.days),
     )
     threshold = rows[0]["moisture_threshold_pct"] if rows else None
+    days = [
+        DayConditions(**{k: v for k, v in r.items() if k != "moisture_threshold_pct"}) for r in rows
+    ]
     return FieldConditions(
-        **fields[0],
-        moisture_threshold_pct=threshold,
-        days=[
-            DayConditions(**{k: v for k, v in r.items() if k != "moisture_threshold_pct"})
-            for r in rows
-        ],
+        **fields[0], moisture_threshold_pct=threshold, summary=summarize(days), days=days
     )
+
+
+def summarize(days: list[DayConditions]) -> str:
+    """The decision in plain words, worked out here so the model only has to repeat it.
+
+    Given seven days of numbers, the 3B model got the headline question backwards
+    ("moisture is below 25%, so no need to irrigate"). Counting is a job for code,
+    where it can be tested; the model gets sentences it can quote.
+    """
+    if not days:
+        return "No data for this field in that period."
+    decided = [d for d in days if d.irrigate is not None]
+    parts = []
+    if decided:
+        latest = decided[-1]
+        verdict = "irrigate" if latest.irrigate else "no need to irrigate"
+        needed = sum(1 for d in decided if d.irrigate)
+        parts.append(f"Latest decision, {latest.day}: {verdict}, because {latest.reason}.")
+        parts.append(f"Irrigation was needed on {needed} of the {len(decided)} decided days shown.")
+    parts += [
+        f"{d.day}: {d.reason}."
+        for d in days
+        if d.irrigate is None and (not decided or d.day > decided[-1].day)
+    ]
+    moisture = [
+        f"{d.day.day} {d.day:%b} {d.moisture_3d_avg_pct:g}%"
+        for d in days
+        if d.moisture_3d_avg_pct is not None
+    ]
+    if moisture:
+        parts.append("3-day average moisture by day: " + ", ".join(moisture) + ".")
+    return " ".join(parts)
 
 
 def list_fields_to_irrigate(*, query: Query = run_query) -> IrrigationList:

@@ -41,3 +41,4 @@ def test_summary_counts_only_rows_that_have_the_metric():
     assert summary["faithfulness"] == "1/1"
     assert summary["refusals"] == "1/1"
     assert summary["tool use"] == "n/a"
+    assert summary["tool answers supported"] == "n/a"

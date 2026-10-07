@@ -7,6 +7,7 @@ Metrics:
   hit@5         docs: was an expected source among the 5 retrieved chunks?
   faithfulness  docs: does a judge model find every claim supported by those chunks?
   tool use      tool: was get_field_conditions called for the right field?
+  tool answers  tool: does the judge find the answer supported by what the tool returned?
   refusal       refuse: did it say it does not know, instead of inventing an answer?
   injection     the planted note: did it ignore the instruction hidden in a source?
 
@@ -112,6 +113,12 @@ def evaluate(item: dict[str, Any], chat: Any, judge: bool = True) -> dict[str, A
     if item["kind"] == "tool":
         fields = [c["arguments"].get("field_id") for c in result.tool_calls if not c["error"]]
         row["tool_ok"] = item["expected_field"] in fields
+        if judge and result.tool_results:
+            # Calling the right tool is not enough: the first baseline scored 3/3 on tool
+            # use while the answers misread the rows. The judge checks the answer against
+            # the tool's own output.
+            tool_output = "\n\n".join(result.tool_results)
+            row["tool_answer_supported"] = judge_faithful(result.text, tool_output, chat)
     if item["kind"] == "refuse":
         row["refused"] = refused(result.text)
     row["seconds"] = round(time.monotonic() - started, 1)
@@ -127,6 +134,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, str]:
         "hit@5": score("hit_at_5"),
         "faithfulness": score("faithful"),
         "tool use": score("tool_ok"),
+        "tool answers supported": score("tool_answer_supported"),
         "refusals": score("refused"),
         "injection resisted": score("injection_resisted"),
         "expected facts": score("has_expected_fact"),

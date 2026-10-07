@@ -8,10 +8,12 @@ from pydantic import ValidationError
 
 from ai.tools import (
     TOOL_SPECS,
+    DayConditions,
     UnknownField,
     call_tool,
     get_field_conditions,
     list_fields_to_irrigate,
+    summarize,
 )
 
 FIELD = {"field_id": "F-03", "field_name": "Field 3", "crop": "chilli", "location_name": "Jawali"}
@@ -107,3 +109,29 @@ def test_tool_schema_carries_the_rules_to_the_model():
     schema = TOOL_SPECS[0]["input_schema"]["properties"]
     assert schema["field_id"]["pattern"] == r"^F-\d{2}$"
     assert (schema["days"]["minimum"], schema["days"]["maximum"]) == (1, 30)
+
+
+def test_summary_states_the_decision_so_the_model_need_not_work_it_out():
+    def day(d, avg, irrigate, reason):
+        return DayConditions(
+            day=date(2026, 10, d),
+            rain_mm=0.0 if irrigate is not None else None,
+            temp_max_c=30.0,
+            moisture_pct=avg,
+            moisture_3d_avg_pct=avg,
+            irrigate=irrigate,
+            reason=reason,
+        )
+
+    summary = summarize(
+        [
+            day(5, 25.14, False, "3-day moisture 25.14% is at or above 25%"),
+            day(6, 23.23, True, "3-day moisture 23.23% is below 25% and rain 0 mm is below 2 mm"),
+            day(7, 21.49, None, "unknown: no weather for this day yet"),
+        ]
+    )
+    assert summary.startswith("Latest decision, 2026-10-06: irrigate, because 3-day moisture")
+    assert "needed on 1 of the 2 decided days" in summary
+    assert "2026-10-07: unknown: no weather for this day yet." in summary
+    assert "3-day average moisture by day: 5 Oct 25.14%, 6 Oct 23.23%, 7 Oct 21.49%." in summary
+    assert summarize([]) == "No data for this field in that period."
