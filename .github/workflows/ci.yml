@@ -1,10 +1,11 @@
-# CI: every pull request and every push to main runs four jobs in parallel.
+# CI: every pull request and every push to main runs five jobs in parallel.
 # Mark them as required checks in branch protection and a red job blocks the merge.
 #
 #   test       ruff, the SQL files, pytest against a real Postgres, dbt build
 #   dags       Airflow DAG integrity tests, in Airflow's own environment
 #   terraform  fmt + validate, with no state and no cloud credentials
 #   image      the consumer image builds, runs as non-root, stays under 200 MB
+#   manifests  Kubernetes manifests and Prometheus alert rules (the same make targets you run)
 
 name: ci
 
@@ -110,3 +111,14 @@ jobs:
           size_mb=$(docker run --rm --user 0 agri/sensor-consumer:ci du -sxm / | cut -f1)
           echo "unpacked image size: ${size_mb} MB"
           test "$size_mb" -lt 200
+
+  manifests:
+    name: Kubernetes manifests + alert rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Manifests against the Kubernetes 1.37 schemas (strict, so a typo fails)
+        run: make k8s-validate
+      - name: Prometheus config, alert rules and the alert unit tests
+        run: make alerts-check

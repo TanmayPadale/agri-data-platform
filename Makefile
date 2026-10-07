@@ -182,3 +182,33 @@ ask: ## Ask the assistant: make ask Q="Should field F-03 be irrigated this week?
 
 evals: ## Score the assistant on the 15 golden questions
 	uv run python -m ai.evals.run_evals
+
+# ---------------------------------------------------------------- Day 7
+
+.PHONY: up-monitoring metrics slo alerts-check k8s-validate verify-mac
+
+PROMETHEUS_IMAGE := prom/prometheus:v3.15.0
+KUBECONFORM_IMAGE := ghcr.io/yannh/kubeconform:v0.7.0
+
+up-monitoring: ## Prometheus :9090, Grafana :3000 and kafka-exporter (after make up-stream)
+	docker compose --profile stream --profile monitoring up -d --wait prometheus grafana kafka-exporter
+
+metrics: ## What the running consumer exposes: health, readiness and its counters
+	@curl -s -o /dev/null -w "/healthz %{http_code}\n" localhost:8000/healthz
+	@curl -s -o /dev/null -w "/ready   %{http_code}\n" localhost:8000/ready
+	@curl -s localhost:8000/metrics | grep -E '^(messages_processed_total|dlq_messages_total|processing_seconds_count)'
+
+slo: ## Measure the two SLIs against their SLOs: weather freshness, sensor latency
+	@for f in sql/slo/*.sql; do echo "== $$f"; $(PSQL) -f - < $$f; done
+
+alerts-check: ## promtool: validate prometheus.yml and alerts.yml, then run the alert unit tests
+	docker run --rm -v $(CURDIR)/monitoring:/etc/prometheus:ro --entrypoint promtool \
+		$(PROMETHEUS_IMAGE) check config /etc/prometheus/prometheus.yml
+	docker run --rm -v $(CURDIR)/monitoring:/etc/prometheus:ro -w /etc/prometheus --entrypoint promtool \
+		$(PROMETHEUS_IMAGE) test rules alerts_test.yml
+
+k8s-validate: ## Render the kustomization and check it against the Kubernetes schemas
+	kubectl kustomize k8s | docker run --rm -i $(KUBECONFORM_IMAGE) -strict -summary -kubernetes-version 1.37.0 -
+
+verify-mac: ## Day 7 on your Mac: build, load into kind, deploy, check (needs make up-stream)
+	bash scripts/verify_mac.sh

@@ -1,0 +1,20 @@
+# Prometheus pulls ("scrapes") metrics over HTTP every 15 seconds and evaluates the
+# alert rules in alerts.yml against them. Open http://localhost:9090/alerts to see them.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # The sensor consumer's /metrics. On the host (make consume) or, for the kind
+  # deployment, through `kubectl -n agri port-forward svc/sensor-consumer 8000:8000`.
+  - job_name: sensor-consumer
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+
+  # Consumer lag per partition, read from Kafka by kafka-exporter.
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: ["kafka-exporter:9308"]

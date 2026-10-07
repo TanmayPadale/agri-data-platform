@@ -1,0 +1,32 @@
+# Alert on symptoms someone would act on (bad data arriving, the stream falling
+# behind), not on resource blips like a CPU spike. Check them with:
+#   promtool check rules monitoring/alerts.yml
+groups:
+  - name: agri-stream
+    rules:
+      - alert: SensorMessagesInDLQ
+        # Any message parked in the dead-letter topic in the last 5 minutes.
+        expr: sum(increase(dlq_messages_total[5m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sensor messages are failing validation and going to the DLQ"
+          description: "Inspect them with `make dlq`. The headers say which check failed and where the message came from."
+
+      - alert: ConsumerLagGrowing
+        # The consumer group is more than 1,000 messages behind for 10 minutes.
+        expr: sum(kafka_consumergroup_lag{consumergroup="agri-loader"}) > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "agri-loader is falling behind sensor.readings"
+          description: "Check that the consumers are running (kubectl -n agri get pods) and not crash-looping."
+
+      - alert: ConsumerDown
+        expr: up{job="sensor-consumer"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus cannot reach the sensor consumer's /metrics"

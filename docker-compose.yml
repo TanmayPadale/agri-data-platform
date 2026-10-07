@@ -1,6 +1,8 @@
 # Local services for the platform. Sized for an 8 GB laptop:
 #   make up          Postgres only (Days 1, 3, 4, 6, 8)
 #   make up-stream   + Kafka and Redis (Days 2, 5, 7). Never run Kafka next to Airflow on 8 GB.
+#   make up-monitoring  + Prometheus, Grafana and kafka-exporter (Day 7)
+#   make emulator    LocalStack, a free local AWS (Day 5)
 #
 # Who connects where:
 #   your Mac (python, dbt, airflow)   localhost:5432 / localhost:9092 / localhost:6379
@@ -86,6 +88,46 @@ services:
       test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
       interval: 5s
       retries: 20
+
+  # Day 7: monitoring (make up-monitoring), about 300 MB of memory together.
+  #   Prometheus  pulls metrics every 15 s and evaluates alerts.yml   http://localhost:9090
+  #   Grafana     draws the dashboard in monitoring/grafana           http://localhost:3000
+  #   kafka-exporter  reads consumer-group lag from Kafka and exposes it as a metric
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: ["monitoring"]
+    ports: ["9090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    extra_hosts: ["host.docker.internal:host-gateway"]   # to scrape the consumer on your Mac
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      retries: 12
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.10.0
+    profiles: ["monitoring"]
+    # Kafka 4 dropped the oldest protocol versions, so tell the client to speak a newer one.
+    command: ["--kafka.server=host.docker.internal:29092", "--kafka.version=3.9.0"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      kafka: {condition: service_healthy}
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    profiles: ["monitoring"]
+    ports: ["3000:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"      # local only: view dashboards without logging in
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer     # edit by logging in as admin / admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/agri-dashboard.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
 
 volumes:
   pgdata:
