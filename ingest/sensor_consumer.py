@@ -19,6 +19,8 @@ Run it (Kafka, Redis and Postgres up: make up-stream):
 
     uv run python -m ingest.sensor_consumer                      # until Ctrl+C
     uv run python -m ingest.sensor_consumer --exit-when-idle 15  # stop after 15 quiet seconds
+
+Day 7 adds metrics and health endpoints on :8000 (ingest/observability.py).
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ import redis
 from confluent_kafka import Consumer, Message, Producer
 from pydantic import ValidationError
 
+from ingest import observability
 from ingest.config import (
     consumer_group,
     dlq_topic,
@@ -199,10 +202,17 @@ class SensorLoader:
 
     # ------------------------------------------------------------ the loop
 
-    def run(self, stop: threading.Event, exit_when_idle: float | None = None) -> Counts:
+    def run(
+        self,
+        stop: threading.Event,
+        exit_when_idle: float | None = None,
+        health: observability.Health | None = None,
+    ) -> Counts:
         last_message = time.monotonic()
         while not stop.is_set():
             msg = self.consumer.poll(1.0)
+            if health:
+                health.beat()  # the loop is turning: what /healthz reports
             if msg is None:
                 if exit_when_idle and time.monotonic() - last_message > exit_when_idle:
                     log.info("idle for %ss, stopping", exit_when_idle)
@@ -212,7 +222,9 @@ class SensorLoader:
                 log.warning("consumer error: %s", msg.error())
                 continue
             last_message = time.monotonic()
-            self.handle(msg)
+            started = time.perf_counter()
+            outcome = self.handle(msg)
+            observability.record(outcome, time.perf_counter() - started)
             total = self.counts.stored + self.counts.duplicate + self.counts.skipped
             if total and total % 5000 == 0:
                 log.info("progress: %s", asdict(self.counts))
@@ -259,8 +271,29 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
+    # Day 7: /metrics, /healthz and /ready on METRICS_PORT (0 turns them off).
+    health = observability.Health()
+    port = int(os.environ.get("METRICS_PORT", "8000"))
+    if port:
+        try:
+            observability.serve(port, health)
+            log.info("metrics and health on :%s", port)
+        except OSError as error:  # e.g. a second consumer on this machine (Day 2 rebalance lab)
+            log.warning(
+                "metrics port %s is busy (%s): running without metrics. "
+                "Give this consumer METRICS_PORT=8001, or 0 to turn them off.",
+                port,
+                error.strerror,
+            )
+
+    def on_assign(consumer: Consumer, partitions: list[Any]) -> None:
+        _log_assign(consumer, partitions)
+        # Ready once the broker has accepted us into the group: Kafka is reachable and
+        # (connected below, before the first poll) so is Postgres.
+        health.ready = True
+
     consumer = new_consumer()
-    consumer.subscribe([sensor_topic()], on_assign=_log_assign, on_revoke=_log_revoke)
+    consumer.subscribe([sensor_topic()], on_assign=on_assign, on_revoke=_log_revoke)
     dlq = Producer({"bootstrap.servers": kafka_bootstrap(), "enable.idempotence": True})
     cache = redis.Redis(redis_host(), redis_port(), socket_timeout=1, socket_connect_timeout=1)
     crash_after = int(os.environ.get("AGRI_CRASH_AFTER_WRITE", "0")) or None
@@ -272,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     with connect(autocommit=True) as conn:
         loader = SensorLoader(consumer, dlq, conn, cache, crash_after_write=crash_after)
         try:
-            counts = loader.run(stop, exit_when_idle=args.exit_when_idle)
+            counts = loader.run(stop, exit_when_idle=args.exit_when_idle, health=health)
         finally:
             consumer.close()  # leave the group now, so the rebalance starts immediately
     print(f"done: {asdict(counts)}")
