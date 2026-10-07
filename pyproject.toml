@@ -1,7 +1,7 @@
 [project]
 name = "agri-data-platform"
 version = "0.1.0"
-description = "Add your description here"
+description = "Weather and soil sensors in, one irrigation decision out: a small end-to-end data platform."
 authors = [
     { name = "Tanmay Padale", email = "tanmaypadale24@gmail.com" }
 ]
@@ -35,4 +35,7 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["slow: long-running tests such as LLM evals"]
+markers = [
+    "db: needs Postgres (make up); skipped when it is not running",
+    "slow: long-running tests such as LLM evals; CI skips them",
+]
