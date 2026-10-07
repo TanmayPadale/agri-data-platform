@@ -46,6 +46,18 @@ def test_loading_twice_leaves_the_same_rows(db, test_dsn, tmp_path):
     assert _count(db) == 5  # ...but still 5 rows: ON CONFLICT updated them in place
 
 
+def test_a_reload_moves_loaded_at_but_not_first_loaded_at(db, test_dsn, tmp_path):
+    """The freshness SLO (sql/slo/01) needs the first arrival time to survive reloads."""
+    path = _day_file(tmp_path, json.loads(FIXTURE.read_text())["daily"])
+    upsert_file(path, dsn=test_dsn)
+    sql = "SELECT loaded_at, first_loaded_at FROM raw.weather_daily WHERE day = '2026-09-24'"
+    loaded_1, first_1 = db.execute(sql).fetchone()
+    upsert_file(path, dsn=test_dsn)
+    loaded_2, first_2 = db.execute(sql).fetchone()
+    assert loaded_2 > loaded_1  # every write moves loaded_at...
+    assert first_2 == first_1  # ...but the first arrival is kept
+
+
 def test_a_corrected_value_updates_the_row(db, test_dsn, tmp_path):
     daily = json.loads(FIXTURE.read_text())["daily"]
     upsert_file(_day_file(tmp_path, daily), dsn=test_dsn)

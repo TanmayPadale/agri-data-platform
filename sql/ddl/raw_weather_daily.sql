@@ -27,6 +27,25 @@ CREATE TABLE IF NOT EXISTS raw.weather_daily (
     rain_mm      NUMERIC(7,2),
     et0_mm       NUMERIC(6,2),                           -- FAO reference evapotranspiration
     source       TEXT         NOT NULL DEFAULT 'open-meteo',
-    loaded_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),    -- when we stored it: freshness tests use this
+    loaded_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),    -- last write: dbt source freshness uses this
+    first_loaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),  -- first arrival, never updated (Day 7 SLO)
     PRIMARY KEY (location_id, day)
 );
+
+-- Day 7: tables created before first_loaded_at existed get it here. Older rows take
+-- their loaded_at as the best guess. The upsert in ingest/weather.py never sets this
+-- column, so after the first insert it keeps the original arrival time forever.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'raw' AND table_name = 'weather_daily'
+          AND column_name = 'first_loaded_at'
+    ) THEN
+        ALTER TABLE raw.weather_daily ADD COLUMN first_loaded_at TIMESTAMPTZ;
+        UPDATE raw.weather_daily SET first_loaded_at = loaded_at;
+        ALTER TABLE raw.weather_daily
+            ALTER COLUMN first_loaded_at SET DEFAULT now(),
+            ALTER COLUMN first_loaded_at SET NOT NULL;
+    END IF;
+END $$;

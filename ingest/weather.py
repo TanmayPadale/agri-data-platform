@@ -246,6 +246,7 @@ SET t_max_c   = EXCLUDED.t_max_c,
     source    = EXCLUDED.source,
     loaded_at = now()
 """
+# first_loaded_at is missing from the SET list on purpose: a reload must not move it.
 
 
 def source_name(endpoint_kind: str) -> str:
