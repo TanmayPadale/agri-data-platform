@@ -1,0 +1,85 @@
+# Every mart states its grain in one sentence, and a test enforces that grain.
+# If a join fans out and doubles rows, `dbt build` fails before anyone reads them.
+
+models:
+  - name: dim_date
+    description: Calendar, one row per day.
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+
+  - name: dim_location
+    description: The farms, one row per location.
+    columns:
+      - name: location_id
+        data_tests: [unique, not_null]
+
+  - name: dim_field
+    description: Fields as they are today, one row per field, with their current sensors.
+    columns:
+      - name: field_id
+        data_tests: [unique, not_null]
+
+  - name: fct_daily_weather
+    description: Daily weather, one row per location per local day.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [location_id, weather_date]
+    columns:
+      - name: location_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_id
+      - name: rain_mm
+        description: Daily precipitation in mm. Over 500 mm in a day would be a unit mistake.
+        data_tests:
+          - not_null
+          - value_between:
+              arguments: {min_value: 0, max_value: 500}
+      - name: rain_3d_mm
+        description: Rain over the last 3 calendar days, including this one.
+
+  - name: fct_sensor_hourly
+    description: Soil moisture per sensor per UTC hour (incremental, 3-hour lookback).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [sensor_id, hour]
+    columns:
+      - name: avg_moisture_pct
+        data_tests:
+          - value_between:
+              arguments: {min_value: 0, max_value: 100}
+      - name: readings
+        data_tests:
+          - value_between:
+              arguments: {min_value: 1, max_value: 100000}
+
+  - name: agg_irrigation_signal
+    description: >
+      The answer the platform exists for, one row per field per local day.
+      irrigate is true when the 3-day average moisture is below the threshold and
+      that day's rain is below 2 mm; null when weather or readings are missing.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [field_id, day]
+    columns:
+      - name: field_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_field')
+                field: field_id
+      - name: moisture_3d_avg_pct
+        description: Average of the daily field moisture over the last 3 calendar days.
+      - name: irrigate
+        description: true = water it, false = no need, null = not enough data to decide.
+      - name: reason
+        description: The decision in words, for reports and for the AI tool.
+        data_tests: [not_null]
