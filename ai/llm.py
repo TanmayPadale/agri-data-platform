@@ -23,6 +23,8 @@ from typing import Any
 
 import httpx
 
+from ingest.retry import retry
+
 # nomic-embed-text was trained with these task prefixes. Using them puts questions
 # and passages in the right "regions" of the vector space, which improves retrieval.
 DOC_PREFIX = "search_document: "
@@ -77,6 +79,28 @@ class Turn:
     tool_calls: list[ToolCall] = field(default_factory=list)
 
 
+class ModelServerError(Exception):
+    """The local model server answered with a 5xx status."""
+
+
+@retry(times=3, base_delay=2.0, retry_on=(httpx.ConnectError, ModelServerError))
+def _ollama_chat(payload: dict[str, Any]) -> dict[str, Any]:
+    """POST /api/chat and return the reply message.
+
+    A 500 from Ollama usually means its model worker died. On an 8 GB machine that is
+    most often memory: the worker keeps a cache of past prompts in RAM, and during a
+    long eval run that cache can outgrow what is free. Ollama starts a fresh worker on
+    the next request, so trying again normally works, and with temperature 0 the retry
+    gives the answer the first try would have. If it keeps happening, restart Ollama
+    with LLAMA_ARG_CACHE_RAM=1024 to cap that cache (see the README).
+    """
+    resp = httpx.post(f"{ollama_url()}/api/chat", json=payload, timeout=600)
+    if resp.status_code >= 500:
+        raise ModelServerError(f"{resp.status_code} from {resp.url}: {resp.text[:200]}")
+    resp.raise_for_status()
+    return resp.json()["message"]
+
+
 class OllamaChat:
     """Local model through Ollama's /api/chat. Free, private, slower on a laptop CPU."""
 
@@ -88,9 +112,8 @@ class OllamaChat:
         return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
     def step(self, conversation: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Turn:
-        resp = httpx.post(
-            f"{ollama_url()}/api/chat",
-            json={
+        message = _ollama_chat(
+            {
                 "model": self.model,
                 "messages": conversation,
                 "tools": [
@@ -108,11 +131,8 @@ class OllamaChat:
                 # Temperature 0 and a fixed seed: the same question gives the same
                 # answer, so an eval score changes only when the system changes.
                 "options": {"temperature": 0, "seed": 7, "num_ctx": self.num_ctx},
-            },
-            timeout=600,
+            }
         )
-        resp.raise_for_status()
-        message = resp.json()["message"]
         conversation.append(message)
         calls = [
             ToolCall(f"call_{i}", c["function"]["name"], _as_dict(c["function"].get("arguments")))

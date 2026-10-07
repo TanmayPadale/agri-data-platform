@@ -114,3 +114,23 @@ def test_claude_adapter_speaks_the_messages_api_format():
         "content": "{}",
         "is_error": False,
     }
+
+
+def test_ollama_tries_again_after_its_worker_dies(monkeypatch):
+    # The first call gets the 500 Ollama returns when its model worker was killed
+    # (out of memory on 8 GB); the second reaches the fresh worker and succeeds.
+    replies = [
+        SimpleNamespace(status_code=500, url="http://ollama/api/chat", text="EOF"),
+        SimpleNamespace(
+            status_code=200,
+            raise_for_status=lambda: None,
+            json=lambda: {"message": {"role": "assistant", "content": "1.05"}},
+        ),
+    ]
+    monkeypatch.setattr(llm.httpx, "post", lambda *args, **kwargs: replies.pop(0))
+    monkeypatch.setattr("ingest.retry.time.sleep", lambda seconds: None)
+
+    chat = llm.OllamaChat(model="llama3.2:3b")
+    turn = chat.step(chat.start("system", "Kc mid for sweet peppers?"), [])
+    assert turn.text == "1.05"
+    assert replies == []  # both replies were used: one failure, one retry
