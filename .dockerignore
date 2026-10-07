@@ -1,0 +1,18 @@
+# Keep the build context small and secret-free: Docker sends everything not listed
+# here to the builder, and a stray .env could end up inside an image layer.
+.git
+.env
+.venv
+.airflow
+.pytest_cache
+.ruff_cache
+**/__pycache__
+data
+reports
+transform/target
+transform/dbt_packages
+transform/logs
+infra/.terraform
+infra/.build
+ai/docs
+*.tfstate*
