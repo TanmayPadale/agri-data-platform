@@ -22,7 +22,7 @@ TEST_DB = "agri_test"
 FIXTURES = Path(__file__).parent / "fixtures"
 
 # Every table a test may write to. TRUNCATE before each test keeps tests independent.
-RAW_TABLES = ["raw.weather_daily"]
+RAW_TABLES = ["raw.weather_daily", "raw.sensor_readings"]
 
 
 @pytest.fixture(scope="session")
