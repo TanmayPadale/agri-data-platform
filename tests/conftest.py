@@ -16,7 +16,7 @@ import pytest
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from ingest.config import agri_dsn
-from ingest.db import apply_sql, sql_files
+from ingest.db import apply_sql, ensure_database, sql_files
 
 TEST_DB = "agri_test"
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -27,16 +27,13 @@ RAW_TABLES = ["raw.weather_daily", "raw.sensor_readings"]
 
 @pytest.fixture(scope="session")
 def test_dsn() -> str:
-    params = conninfo_to_dict(agri_dsn())
     try:
-        with psycopg.connect(agri_dsn(), autocommit=True, connect_timeout=3) as admin:
-            exists = admin.execute(
-                "SELECT 1 FROM pg_database WHERE datname = %s", (TEST_DB,)
-            ).fetchone()
-            if not exists:
-                admin.execute(f'CREATE DATABASE "{TEST_DB}"')
+        with psycopg.connect(agri_dsn(), connect_timeout=3):
+            pass
     except psycopg.OperationalError as exc:
         pytest.skip(f"Postgres is not reachable ({exc.__class__.__name__}); run `make up` first")
+    ensure_database(TEST_DB)
+    params = conninfo_to_dict(agri_dsn())
     params["dbname"] = TEST_DB
     dsn = make_conninfo(**params)
     with psycopg.connect(dsn) as conn:

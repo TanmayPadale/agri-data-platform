@@ -1,16 +1,20 @@
 """Postgres helpers: one way to connect, one way to create the tables.
 
-Run `uv run python -m ingest.db` (or `make ddl`) to apply every SQL file in
-sql/init, sql/ddl and sql/roles, in that order. Each file only uses
-CREATE ... IF NOT EXISTS style statements, so applying them again is harmless.
+    uv run python -m ingest.db                            # apply every SQL file (make ddl)
+    uv run python -m ingest.db --create-database airflow  # an extra database on the same server
+
+The SQL files in sql/init, sql/ddl and sql/roles are applied in that order. Each
+uses CREATE ... IF NOT EXISTS style statements, so applying them again is harmless.
 """
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Iterable
 from pathlib import Path
 
 import psycopg
+from psycopg import sql
 
 from ingest.config import REPO_ROOT, agri_dsn
 
@@ -43,7 +47,28 @@ def apply_sql(conn: psycopg.Connection, files: Iterable[Path]) -> list[Path]:
     return applied
 
 
-def main() -> None:
+def ensure_database(name: str, dsn: str | None = None) -> bool:
+    """Create database `name` on the same server if it is missing. Returns True if created.
+
+    CREATE DATABASE cannot run inside a transaction, hence autocommit. The name is
+    passed through sql.Identifier, which quotes it safely instead of pasting it in.
+    """
+    with connect(dsn, autocommit=True) as conn:
+        exists = conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (name,)).fetchone()
+        if exists:
+            return False
+        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+        return True
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Apply the SQL files, or create a database.")
+    parser.add_argument("--create-database", metavar="NAME", help="create this database if missing")
+    args = parser.parse_args(argv)
+    if args.create_database:
+        created = ensure_database(args.create_database)
+        print(f"database {args.create_database}: {'created' if created else 'already exists'}")
+        return
     with connect() as conn:
         for path in apply_sql(conn, sql_files()):
             print(f"applied {path.relative_to(REPO_ROOT)}")
