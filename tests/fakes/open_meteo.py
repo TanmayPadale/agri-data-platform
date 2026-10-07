@@ -45,8 +45,8 @@ def load_recordings(folder: Path = RECORDED) -> dict[int, dict[str, dict[str, An
 
 
 class FakeOpenMeteo(ThreadingHTTPServer):
-    def __init__(self, port: int = 0, fail_rate: float = 0.0) -> None:
-        super().__init__(("127.0.0.1", port), _Handler)
+    def __init__(self, port: int = 0, fail_rate: float = 0.0, host: str = "127.0.0.1") -> None:
+        super().__init__((host, port), _Handler)
         self.recordings = load_recordings()
         self.locations = load_locations()
         self.fail_rate = fail_rate
@@ -54,7 +54,7 @@ class FakeOpenMeteo(ThreadingHTTPServer):
 
     @property
     def base_url(self) -> str:
-        return f"http://127.0.0.1:{self.server_address[1]}"
+        return f"http://localhost:{self.server_address[1]}"
 
     def start_in_thread(self) -> FakeOpenMeteo:
         threading.Thread(target=self.serve_forever, daemon=True).start()
@@ -125,8 +125,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8090)
     parser.add_argument("--fail-rate", type=float, default=0.0)
+    parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 lets containers reach it")
     args = parser.parse_args()
-    server = FakeOpenMeteo(args.port, args.fail_rate)
+    server = FakeOpenMeteo(args.port, args.fail_rate, args.host)
     print(f"fake Open-Meteo on {server.base_url} (fail rate {args.fail_rate:.0%})", flush=True)
     server.serve_forever()
 

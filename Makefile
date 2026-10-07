@@ -129,3 +129,40 @@ backfill: ## Backfill agri_daily (Airflow running): make backfill FROM=2026-09-2
 
 test-dags: ## DAG integrity tests, run inside the Airflow venv
 	$(AIRFLOW_ENV) python -m pytest -q tests/test_dags.py -p no:cacheprovider
+
+# ---------------------------------------------------------------- Day 5
+
+.PHONY: image tf-validate emulator tf-emulator-apply tf-emulator-run tf-emulator-destroy
+
+IMAGE ?= agri/sensor-consumer:0.1.0
+TF := terraform -chdir=infra
+# The emulator accepts any credentials; these dummy values keep real ones out of it.
+EMULATOR_ENV := AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=ap-southeast-2 AWS_DEFAULT_REGION=ap-southeast-2
+
+image: ## Build the ingest image (consumer + weather job) and smoke-test it
+	docker build -f ingest/Dockerfile -t $(IMAGE) .
+	docker run --rm $(IMAGE) python -c "import ingest.sensor_consumer, ingest.weather; print('image ok')"
+
+tf-validate: ## terraform fmt check + validate: no state, no credentials (what CI runs)
+	$(TF) fmt -check -recursive
+	$(TF) init -backend=false -input=false
+	$(TF) validate
+
+emulator: ## Start LocalStack, a free local AWS, on :4566
+	docker compose --profile aws up -d --wait localstack
+
+tf-emulator-apply: emulator ## State bucket, raw bucket, Lambda, IAM and schedule, all in the emulator
+	$(EMULATOR_ENV) terraform -chdir=infra/bootstrap init -input=false
+	$(EMULATOR_ENV) terraform -chdir=infra/bootstrap apply -auto-approve -var-file=../emulator.tfvars
+	$(EMULATOR_ENV) $(TF) init -input=false -reconfigure -backend-config=backend/emulator.s3.tfbackend
+	$(EMULATOR_ENV) $(TF) apply -auto-approve -var-file=emulator.tfvars
+
+tf-emulator-run: ## Run the Lambda handler locally against the emulator, then list the bucket
+	$(EMULATOR_ENV) AWS_ENDPOINT_URL=http://localhost:4566 BUCKET=agri-raw-local \
+		uv run python infra/lambda/weather_to_s3/handler.py
+	$(EMULATOR_ENV) AWS_ENDPOINT_URL=http://localhost:4566 uv run python -c "import boto3; \
+		[print(o['Key'], o['Size']) for o in boto3.client('s3').list_objects_v2(Bucket='agri-raw-local').get('Contents', [])]"
+
+tf-emulator-destroy: ## Remove everything from the emulator again
+	$(EMULATOR_ENV) $(TF) destroy -auto-approve -var-file=emulator.tfvars
+	$(EMULATOR_ENV) terraform -chdir=infra/bootstrap destroy -auto-approve -var-file=../emulator.tfvars

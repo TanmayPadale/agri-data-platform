@@ -70,6 +70,23 @@ services:
       interval: 5s
       retries: 10
 
+  # Day 5: a free local AWS for Terraform (make tf-emulator-apply). Pinned to 4.14, the
+  # last community build before LocalStack's March 2026 image change: no account needed.
+  localstack:
+    image: localstack/localstack:4.14
+    profiles: ["aws"]
+    ports: ["4566:4566"]
+    environment:
+      SERVICES: s3,iam,sts,lambda,logs,events
+      # Lambda functions run in their own containers, so LocalStack needs Docker access.
+      LAMBDA_DOCKER_FLAGS: "--add-host=host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      retries: 20
+
 volumes:
   pgdata:
   kafkadata:

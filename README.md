@@ -16,6 +16,10 @@ This is the capstone of my Stack Refresh Sprint, built one layer a day.
   data interval per run, so a 14-day backfill run twice gives identical results. The
   irrigation report is scheduled on data: it runs when the quality check marks the
   signal as updated.
+- **Day 5:** one non-root image (170 MB unpacked) for both ingest jobs; Terraform for an
+  S3 landing bucket, a least-privilege Lambda and its EventBridge schedule, with remote
+  state locked in S3; applied for free against a local AWS emulator; GitHub Actions
+  runs lint, tests, dbt, DAG checks, Terraform validation and the image build on every PR.
 
 ## Quickstart
 
@@ -36,6 +40,10 @@ make down && make up     # on 8 GB, never run Kafka and Airflow together
 make airflow-install     # once: Airflow 3.3 in its own venv
 make airflow             # UI on http://localhost:8080 (password in .airflow/)
 make backfill FROM=2026-09-21 TO=2026-10-04
+
+make image               # the ingest image, smoke-tested
+make tf-validate         # what CI runs: fmt + validate, no credentials
+make tf-emulator-apply   # the AWS side in LocalStack, free (make tf-emulator-destroy after)
 make test
 ```
 
