@@ -41,3 +41,31 @@ def data_dir() -> Path:
     """Root folder for landed files, e.g. data/raw/weather/dt=2026-10-01/."""
     path = Path(os.environ.get("AGRI_DATA_DIR", "data"))
     return path if path.is_absolute() else REPO_ROOT / path
+
+
+# ---------------------------------------------------------------- Day 2: streaming
+
+
+def kafka_bootstrap() -> str:
+    """localhost:9092 from your Mac; host.docker.internal:29092 from a container or pod."""
+    return os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
+
+
+def sensor_topic() -> str:
+    return os.environ.get("SENSOR_TOPIC", "sensor.readings")
+
+
+def dlq_topic() -> str:
+    return os.environ.get("SENSOR_DLQ_TOPIC", "sensor.readings.dlq")
+
+
+def consumer_group() -> str:
+    return os.environ.get("CONSUMER_GROUP", "agri-loader")
+
+
+def redis_host() -> str:
+    return os.environ.get("REDIS_HOST", "localhost")
+
+
+def redis_port() -> int:
+    return int(os.environ.get("REDIS_PORT", "6379"))

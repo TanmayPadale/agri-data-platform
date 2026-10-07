@@ -21,10 +21,10 @@ up: ## Start Postgres (waits until it is healthy)
 	docker compose up -d --wait postgres
 
 down: ## Stop every container (data volumes are kept)
-	docker compose down
+	docker compose --profile stream --profile monitoring down
 
 reset: ## Stop everything AND delete the data volumes (asks first)
-	@read -p "Delete all local data volumes? [y/N] " ok && [ "$$ok" = "y" ] && docker compose down -v
+	@read -p "Delete all local data volumes? [y/N] " ok && [ "$$ok" = "y" ] && docker compose --profile stream --profile monitoring down -v
 
 ddl: ## Create schemas and tables (safe to rerun)
 	uv run python -m ingest.db
@@ -51,3 +51,36 @@ lint: ## Lint and check formatting
 fmt: ## Auto-fix lint issues and format
 	uv run ruff check . --fix
 	uv run ruff format .
+
+# ---------------------------------------------------------------- Day 2
+
+.PHONY: up-stream topics produce history poison consume group dlq
+
+KAFKA_BIN := docker compose exec -T kafka /opt/kafka/bin
+BOOTSTRAP := --bootstrap-server localhost:9092
+
+up-stream: ## Start Postgres, Kafka and Redis, then create the topics
+	docker compose --profile stream up -d --wait postgres kafka redis
+	$(MAKE) --no-print-directory topics ddl
+
+topics: ## Create sensor.readings (6 partitions) and its DLQ (safe to rerun)
+	$(KAFKA_BIN)/kafka-topics.sh $(BOOTSTRAP) --create --if-not-exists --topic sensor.readings --partitions 6 --replication-factor 1
+	$(KAFKA_BIN)/kafka-topics.sh $(BOOTSTRAP) --create --if-not-exists --topic sensor.readings.dlq --partitions 1 --replication-factor 1
+
+produce: ## Stream live readings from 20 sensors every 2 s (Ctrl+C stops)
+	uv run python -m ingest.sensor_producer
+
+history: ## Send 21 days of past readings, so dbt has days to model
+	uv run python -m ingest.sensor_producer --history-days 21 --seed 42
+
+poison: ## Send one malformed message (it should land in the DLQ)
+	uv run python -m ingest.sensor_producer --poison
+
+consume: ## Run the consumer (Ctrl+C stops)
+	uv run python -m ingest.sensor_consumer
+
+group: ## Show the consumer group: who owns which partition, and the lag
+	$(KAFKA_BIN)/kafka-consumer-groups.sh $(BOOTSTRAP) --describe --group agri-loader
+
+dlq: ## Print what is parked in the dead-letter topic, with its headers
+	$(KAFKA_BIN)/kafka-console-consumer.sh $(BOOTSTRAP) --topic sensor.readings.dlq --from-beginning --timeout-ms 5000 --formatter-property print.key=true --formatter-property print.headers=true

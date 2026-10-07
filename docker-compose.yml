@@ -1,3 +1,11 @@
+# Local services for the platform. Sized for an 8 GB laptop:
+#   make up          Postgres only (Days 1, 3, 4, 6, 8)
+#   make up-stream   + Kafka and Redis (Days 2, 5, 7). Never run Kafka next to Airflow on 8 GB.
+#
+# Who connects where:
+#   your Mac (python, dbt, airflow)   localhost:5432 / localhost:9092 / localhost:6379
+#   containers and kind pods          host.docker.internal:5432 / :29092 / :6379
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -15,5 +23,53 @@ services:
       retries: 10
       start_period: 10s
 
+  # Day 2: a single Kafka 4 broker in KRaft mode (no ZooKeeper since Kafka 4.0).
+  # One node plays both roles: broker (stores partitions) and controller (keeps
+  # cluster metadata in its own Raft log). Development only: replication factor 1.
+  kafka:
+    image: apache/kafka:4.3.1
+    profiles: ["stream"]
+    ports:
+      - "9092:9092"     # HOST listener: programs on your Mac
+      - "29092:29092"   # DOCKER listener: containers and kind pods, via host.docker.internal
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # A client first connects to any listener, then is told the ADVERTISED address
+      # to use from then on. Each audience needs an address it can actually reach.
+      KAFKA_LISTENERS: HOST://:9092,DOCKER://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://host.docker.internal:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: HOST
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # topics are created on purpose (make topics)
+      KAFKA_LOG_RETENTION_HOURS: 168             # 7 days of replay
+      KAFKA_HEAP_OPTS: "-Xms384m -Xmx384m"       # keep the JVM small on 8 GB
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      retries: 12
+      start_period: 20s
+
+  # Day 2: dedupe memory (seen:{event_id}) and the latest value per sensor (latest:{sensor_id}).
+  redis:
+    image: redis:8.2-alpine
+    profiles: ["stream"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-ttl"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
 volumes:
   pgdata:
+  kafkadata:

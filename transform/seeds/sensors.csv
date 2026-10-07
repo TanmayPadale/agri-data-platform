@@ -1,0 +1,21 @@
+sensor_id,field_id,field_name,crop,location_id
+S-01,F-01,Field 1,marigold,1
+S-02,F-01,Field 1,marigold,1
+S-03,F-02,Field 2,onion,1
+S-04,F-02,Field 2,onion,1
+S-05,F-03,Field 3,chilli,1
+S-06,F-03,Field 3,chilli,1
+S-07,F-04,Field 4,sugarcane,1
+S-08,F-04,Field 4,sugarcane,1
+S-09,F-05,Field 5,tomato,1
+S-10,F-05,Field 5,tomato,1
+S-11,F-06,Field 6,rice,2
+S-12,F-06,Field 6,rice,2
+S-13,F-07,Field 7,cotton,2
+S-14,F-07,Field 7,cotton,2
+S-15,F-08,Field 8,citrus,2
+S-16,F-08,Field 8,citrus,2
+S-17,F-09,Field 9,wine grapes,2
+S-18,F-09,Field 9,wine grapes,2
+S-19,F-10,Field 10,almonds,2
+S-20,F-10,Field 10,almonds,2
